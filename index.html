@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crusher Diagnostic — Verta Bioenergy</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#080b10;--s:#111620;--s2:#181e2c;--s3:#1f2738;
+  --b:rgba(255,255,255,.07);--b2:rgba(255,255,255,.13);
+  --t:#dde2ee;--t2:#8e95b0;--t3:#555e78;
+  --ac:#3b82f6;--g:#22c55e;--am:#f59e0b;--r:#ef4444;--p:#a855f7;
+  --mono:'JetBrains Mono',monospace;--disp:'Syne',sans-serif;
+  --rad:8px;--rad-lg:12px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--mono);background:var(--bg);color:var(--t);min-height:100vh;font-size:12.5px;overflow-x:hidden;}
+
+/* ── SETUP GATE ──────────────────────────────────────────────────────────── */
+.gate{position:fixed;inset:0;z-index:500;background:rgba(8,11,16,.97);display:flex;align-items:center;justify-content:center;padding:20px;}
+.gate.hidden{display:none;}
+.gate-box{background:var(--s);border:1px solid var(--b2);border-radius:var(--rad-lg);padding:36px 40px;max-width:480px;width:100%;}
+.gate-logo{font-size:28px;margin-bottom:16px;}
+.gate-title{font-family:var(--disp);font-size:22px;font-weight:800;margin-bottom:6px;}
+.gate-sub{font-size:12px;color:var(--t2);line-height:1.6;margin-bottom:24px;}
+.gate-label{font-size:10px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;}
+.gate-input-wrap{position:relative;margin-bottom:10px;}
+.gate-input{width:100%;background:var(--s2);border:1px solid var(--b2);border-radius:var(--rad);color:var(--t);font-family:var(--mono);font-size:13px;padding:11px 44px 11px 14px;outline:none;transition:border-color .2s;}
+.gate-input:focus{border-color:var(--ac);}
+.gate-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);cursor:pointer;font-size:15px;padding:4px;}
+.gate-hint{font-size:10px;color:var(--t3);line-height:1.6;margin-bottom:20px;}
+.gate-hint a{color:var(--ac);text-decoration:none;}
+.gate-hint a:hover{text-decoration:underline;}
+.gate-btn{width:100%;padding:13px;background:var(--ac);color:#fff;border:none;border-radius:var(--rad);font-family:var(--mono);font-size:13px;font-weight:700;cursor:pointer;transition:background .2s;}
+.gate-btn:hover{background:#4f92ff;}
+.gate-btn:disabled{opacity:.4;cursor:not-allowed;}
+.gate-err{font-size:11px;color:var(--r);margin-top:10px;min-height:16px;}
+.gate-status{font-size:11px;color:var(--t3);margin-top:10px;min-height:16px;}
+
+/* ── HEADER ──────────────────────────────────────────────────────────────── */
+.hdr{position:sticky;top:0;z-index:100;background:var(--bg);border-bottom:1px solid var(--b);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:56px;}
+.hdr::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,.012) 2px,rgba(255,255,255,.012) 4px);pointer-events:none;}
+.hdr-brand{display:flex;align-items:center;gap:12px;}
+.hdr-name{font-family:var(--disp);font-size:14px;font-weight:700;letter-spacing:.04em;}
+.hdr-sub{font-size:10px;color:var(--t3);letter-spacing:.1em;text-transform:uppercase;margin-top:1px;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.spill{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:5px 14px;border-radius:20px;transition:all .3s;}
+.sp-idle{background:rgba(255,255,255,.05);color:var(--t3);border:1px solid var(--b);}
+.sp-g{background:rgba(34,197,94,.15);color:var(--g);border:1px solid rgba(34,197,94,.3);}
+.sp-a{background:rgba(245,158,11,.15);color:var(--am);border:1px solid rgba(245,158,11,.3);}
+.sp-r{background:rgba(239,68,68,.15);color:var(--r);border:1px solid rgba(239,68,68,.3);}
+.sp-c{background:rgba(168,85,247,.2);color:var(--p);border:1px solid rgba(168,85,247,.5);animation:pp 1.5s ease-in-out infinite;}
+@keyframes pp{0%,100%{box-shadow:0 0 12px rgba(168,85,247,.2)}50%{box-shadow:0 0 24px rgba(168,85,247,.5)}}
+.icon-btn{background:none;border:1px solid var(--b);border-radius:6px;color:var(--t2);cursor:pointer;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .2s;}
+.icon-btn:hover{border-color:var(--ac);color:var(--ac);}
+
+/* ── LAYOUT ──────────────────────────────────────────────────────────────── */
+.shell{max-width:1100px;margin:0 auto;padding:20px 20px 80px;}
+.mg{display:grid;grid-template-columns:420px 1fr;gap:16px;align-items:start;}
+.card{background:var(--s);border:1px solid var(--b);border-radius:var(--rad-lg);overflow:hidden;}
+.chdr{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--b);}
+.ct{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--t2);}
+.cb{padding:16px;}
+
+/* ── INPUTS ──────────────────────────────────────────────────────────────── */
+.iso-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.iso-i{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--t3);}
+.iso-d{width:7px;height:7px;border-radius:50%;}
+.sl{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--t2);margin:14px 0 8px;display:flex;align-items:center;gap:6px;}
+.sl::before{content:'';display:inline-block;width:3px;height:12px;background:var(--ac);border-radius:2px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.f{display:flex;flex-direction:column;gap:4px;}
+.f label{font-size:9px;color:var(--t3);letter-spacing:.07em;text-transform:uppercase;}
+.f input{background:var(--s2);border:1px solid var(--b);border-radius:var(--rad);color:var(--t);font-family:var(--mono);font-size:12.5px;padding:7px 10px;outline:none;width:100%;transition:border-color .2s,background .2s;}
+.f input:focus{border-color:var(--ac);background:var(--s3);}
+.f input.vg{border-color:rgba(34,197,94,.35);}
+.f input.va{border-color:rgba(245,158,11,.35);}
+.f input.vr{border-color:rgba(239,68,68,.4);}
+.f input.vc{border-color:rgba(168,85,247,.5);}
+.f input[type=number]::-webkit-inner-spin-button{opacity:.3;}
+.dvd{border:none;border-top:1px solid var(--b);margin:14px 0;}
+.abtn{width:100%;margin-top:14px;padding:13px;background:var(--ac);color:#fff;border:none;border-radius:var(--rad);font-family:var(--mono);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .2s;box-shadow:0 4px 16px rgba(59,130,246,.25);}
+.abtn:hover:not(:disabled){background:#4f92ff;}
+.abtn:disabled{opacity:.45;cursor:not-allowed;}
+
+/* ── BLADE ───────────────────────────────────────────────────────────────── */
+.btog{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:12px 16px;user-select:none;}
+.btog:hover{background:var(--s2);}
+.chv{font-size:10px;color:var(--t3);transition:transform .25s;}
+.chv.open{transform:rotate(180deg);}
+.bbody{padding:0 16px 16px;display:none;}
+.bbody.open{display:block;}
+.btab{width:100%;border-collapse:collapse;font-size:11px;}
+.btab th{font-size:9px;color:var(--t3);font-weight:500;letter-spacing:.08em;text-transform:uppercase;padding:4px 6px;border-bottom:1px solid var(--b);text-align:center;}
+.btab td{padding:2px 4px;}
+.rn{font-size:9px;color:var(--t3);text-align:center;width:24px;}
+.bi{width:100%;background:var(--s3);border:1px solid var(--b);border-radius:4px;color:var(--t);font-family:var(--mono);font-size:11px;padding:3px 5px;text-align:center;outline:none;}
+.bi:focus{border-color:var(--ac);}
+.dc{text-align:center;font-weight:500;font-size:11px;padding:0 4px;}
+.dg{color:var(--g)}.dw{color:var(--am)}.db{color:var(--r);}
+.bstats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px;}
+.bst{background:var(--s3);border-radius:6px;padding:8px;text-align:center;}
+.bsv{font-size:14px;font-weight:700;}
+.bsl{font-size:9px;color:var(--t3);margin-top:2px;letter-spacing:.06em;}
+
+/* ── RESULT ──────────────────────────────────────────────────────────────── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:340px;gap:10px;color:var(--t3);}
+.sev-banner{border-radius:var(--rad-lg) var(--rad-lg) 0 0;padding:16px 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.sev-banner.green{background:rgba(34,197,94,.1);border-bottom:1px solid rgba(34,197,94,.25);}
+.sev-banner.amber{background:rgba(245,158,11,.1);border-bottom:1px solid rgba(245,158,11,.3);}
+.sev-banner.red{background:rgba(239,68,68,.1);border-bottom:1px solid rgba(239,68,68,.3);}
+.sev-banner.critical{background:rgba(168,85,247,.12);border-bottom:1px solid rgba(168,85,247,.4);}
+.sl2{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px;}
+.sl2.green{color:var(--g)}.sl2.amber{color:var(--am)}.sl2.red{color:var(--r)}.sl2.critical{color:var(--p);}
+.sfault{font-family:var(--disp);font-size:18px;font-weight:700;margin-bottom:4px;}
+.sreason{font-size:11px;color:var(--t2);line-height:1.5;}
+.cbadge{font-size:10px;padding:3px 9px;border-radius:4px;background:rgba(255,255,255,.07);color:var(--t2);white-space:nowrap;}
+.stop-b{background:rgba(168,85,247,.12);border:1px solid rgba(168,85,247,.4);border-radius:var(--rad);padding:12px 16px;margin:14px 16px;display:flex;align-items:flex-start;gap:10px;}
+.stop-i{font-size:20px;flex-shrink:0;}
+.stop-t b{font-size:12px;font-weight:700;color:#c084fc;display:block;margin-bottom:3px;}
+.stop-t span{font-size:11px;color:#c084fc;opacity:.85;line-height:1.5;}
+.rb{padding:14px 16px;display:flex;flex-direction:column;gap:14px;}
+.rg{display:grid;grid-template-columns:1fr 1fr;}
+.rr{display:flex;justify-content:space-between;padding:5px 8px;border-radius:4px;}
+.rr:nth-child(odd){background:var(--s2);}
+.rk{font-size:11px;color:var(--t2);}
+.rv{font-size:11px;font-weight:700;}
+.rv-g{color:var(--g)}.rv-a{color:var(--am)}.rv-r{color:var(--r)}.rv-c{color:var(--p);}
+.pat{background:var(--s2);border-radius:var(--rad);padding:10px 12px;border-left:3px solid var(--ac);}
+.pat-l{font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;}
+.pat-v{font-size:11px;color:var(--ac);line-height:1.5;}
+.factors{display:flex;flex-direction:column;gap:6px;}
+.fi{display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:1.5;}
+.fd{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.sh{font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--t3);margin-bottom:6px;}
+.sh.imm{color:rgba(239,68,68,.8)}.sh.sch{color:rgba(245,158,11,.8);}
+.acts{display:flex;flex-direction:column;gap:5px;}
+.act{display:flex;align-items:flex-start;gap:8px;padding:8px 12px;border-radius:var(--rad);font-size:11px;line-height:1.5;}
+.act.imm{background:rgba(239,68,68,.08);border-left:2px solid var(--r);}
+.act.sch{background:rgba(245,158,11,.08);border-left:2px solid var(--am);}
+.an{font-size:9px;font-weight:700;color:var(--t3);flex-shrink:0;margin-top:1px;width:14px;}
+.dax{background:var(--s2);border-radius:var(--rad);padding:9px 12px;font-size:11px;color:var(--t2);line-height:1.5;}
+.dax b{color:var(--ac);}
+.blade-a{background:var(--s2);border-radius:var(--rad);padding:10px 12px;}
+.blade-al{font-size:9px;color:var(--t3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px;}
+.blade-at{font-size:11px;color:var(--t2);line-height:1.6;}
+.err-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:var(--rad);padding:14px 16px;margin:16px;}
+.err-title{font-size:11px;font-weight:700;color:var(--r);margin-bottom:8px;}
+.err-msg{font-size:11px;color:#fca5a5;line-height:1.6;word-break:break-word;}
+
+/* ── CRITICAL BAR ────────────────────────────────────────────────────────── */
+.crit-bar{position:fixed;top:56px;left:0;right:0;z-index:200;background:rgba(168,85,247,.95);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid rgba(168,85,247,.6);transform:translateY(-100%);transition:transform .35s;}
+.crit-bar.show{transform:translateY(0);}
+.crit-txt{font-size:12px;color:#fff;font-weight:600;}
+.crit-btns{display:flex;gap:8px;}
+.cbtn{padding:5px 14px;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;border:none;}
+.cbtn-e{background:#fff;color:#7c3aed;}
+.cbtn-d{background:rgba(255,255,255,.15);color:#fff;}
+
+/* ── HISTORY ─────────────────────────────────────────────────────────────── */
+.hist-sec{margin-top:20px;}
+.tw{height:110px;position:relative;padding:0 4px;}
+.hl{display:flex;flex-direction:column;gap:4px;max-height:320px;overflow-y:auto;}
+.hi{display:grid;grid-template-columns:80px 1fr auto auto;align-items:center;gap:12px;padding:9px 14px;background:var(--s);border:1px solid var(--b);border-radius:var(--rad);cursor:pointer;transition:border-color .15s;}
+.hi:hover{border-color:var(--b2);}
+.hts{font-size:10px;color:var(--t3);}
+.hf{font-size:11px;}
+.hn{font-size:10px;color:var(--t3);}
+.hv{font-size:10px;color:var(--t3);white-space:nowrap;}
+.hp{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:3px 8px;border-radius:4px;white-space:nowrap;}
+.gb{background:none;border:1px solid var(--b);border-radius:6px;color:var(--t3);font-family:var(--mono);font-size:11px;padding:5px 12px;cursor:pointer;transition:all .2s;}
+.gb:hover{border-color:var(--ac);color:var(--ac);}
+
+/* ── SETTINGS PANEL ──────────────────────────────────────────────────────── */
+.sov{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .25s;}
+.sov.show{opacity:1;pointer-events:all;}
+.spanel{position:fixed;top:0;right:0;bottom:0;z-index:301;width:380px;background:var(--s);border-left:1px solid var(--b2);transform:translateX(100%);transition:transform .3s;overflow-y:auto;}
+.spanel.show{transform:translateX(0);}
+.shdr{padding:18px 20px 14px;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;}
+.stit{font-family:var(--disp);font-size:16px;font-weight:700;}
+.sbody{padding:20px;display:flex;flex-direction:column;gap:18px;}
+.sgt{font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--t3);margin-bottom:10px;}
+.snote{font-size:10px;color:var(--t3);line-height:1.6;margin-top:6px;}
+.sbtn{width:100%;padding:11px;background:var(--ac);color:#fff;border:none;border-radius:var(--rad);font-family:var(--mono);font-size:12px;font-weight:700;cursor:pointer;transition:background .2s;}
+.sbtn:hover{background:#4f92ff;}
+.test-btn{width:100%;padding:9px;background:transparent;color:var(--t2);border:1px solid var(--b2);border-radius:var(--rad);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .2s;margin-top:6px;}
+.test-btn:hover{border-color:var(--ac);color:var(--ac);}
+.api-status{background:var(--s2);border:1px solid var(--b);border-radius:var(--rad);padding:10px 12px;font-size:11px;color:var(--t2);line-height:1.6;margin-top:6px;}
+.api-ok{border-color:rgba(34,197,94,.4);color:var(--g);}
+.api-err{border-color:rgba(239,68,68,.4);color:var(--r);}
+.key-wrap{position:relative;}
+.key-wrap input{padding-right:38px;}
+.key-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t3);cursor:pointer;font-size:15px;}
+.key-eye:hover{color:var(--t);}
+
+/* ── LOADER ──────────────────────────────────────────────────────────────── */
+.ldr{display:flex;align-items:center;justify-content:center;gap:10px;padding:40px 20px;color:var(--t3);}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{width:18px;height:18px;border:2px solid var(--b2);border-top-color:var(--ac);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<!-- ── SETUP GATE (shown on first visit / no API key) ───────────────────── -->
+<div class="gate" id="gate">
+  <div class="gate-box">
+    <div class="gate-logo">⚙</div>
+    <div class="gate-title">Crusher Diagnostic</div>
+    <div class="gate-sub">Verta Bioenergy · Dasmariñas Cavite<br>Enter your Anthropic API key to get started. It's stored only in your browser — never sent anywhere except directly to Anthropic.</div>
+    <div class="gate-label">Anthropic API Key</div>
+    <div class="gate-input-wrap">
+      <input class="gate-input" type="password" id="gateKey" placeholder="sk-ant-api03-…" oninput="document.getElementById('gateErr').textContent=''">
+      <button class="gate-eye" onclick="toggleGateEye()" id="gateEyeBtn" type="button">👁</button>
+    </div>
+    <div class="gate-hint">
+      Get your key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> → API Keys → Create Key.<br>
+      Your key starts with <code style="color:var(--ac)">sk-ant-</code>
+    </div>
+    <button class="gate-btn" id="gateBtn" onclick="submitGate()">Save &amp; Continue →</button>
+    <div class="gate-status" id="gateStatus"></div>
+    <div class="gate-err" id="gateErr"></div>
+  </div>
+</div>
+
+<!-- ── CRITICAL BAR ──────────────────────────────────────────────────────── -->
+<div class="crit-bar" id="critBar">
+  <div class="crit-txt" id="critTxt">⚠ CRITICAL vibration detected</div>
+  <div class="crit-btns">
+    <button class="cbtn cbtn-e" onclick="sendEmail()">📧 Send Alert</button>
+    <button class="cbtn cbtn-d" onclick="document.getElementById('critBar').classList.remove('show')">Dismiss</button>
+  </div>
+</div>
+
+<!-- ── HEADER ────────────────────────────────────────────────────────────── -->
+<header class="hdr">
+  <div class="hdr-brand">
+    <div>
+      <div class="hdr-name" id="siteHdr">Crusher Diagnostic</div>
+      <div class="hdr-sub">Verta Bioenergy · Dasmariñas Cavite · 4000 RPM</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="spill sp-idle" id="statusPill">AWAITING INPUT</div>
+    <button class="icon-btn" onclick="openSettings()" title="Settings">⚙</button>
+  </div>
+</header>
+
+<!-- ── SETTINGS PANEL ────────────────────────────────────────────────────── -->
+<div class="sov" id="sov" onclick="closeSettings()"></div>
+<aside class="spanel" id="spanel">
+  <div class="shdr">
+    <div class="stit">Settings</div>
+    <button class="icon-btn" onclick="closeSettings()">✕</button>
+  </div>
+  <div class="sbody">
+
+    <div>
+      <div class="sgt">Anthropic API Key</div>
+      <div class="f">
+        <label>API KEY</label>
+        <div class="key-wrap">
+          <input type="password" id="settingsKey" placeholder="sk-ant-api03-…">
+          <button class="key-eye" onclick="toggleSettingsEye()" id="settingsEyeBtn" type="button">👁</button>
+        </div>
+      </div>
+      <button class="test-btn" onclick="testKey()">🔌 Test Connection</button>
+      <div class="api-status" id="apiStatus">—</div>
+      <div class="snote">Stored only in your browser's local storage. Never sent anywhere except directly to Anthropic's API.</div>
+    </div>
+
+    <div>
+      <div class="sgt">Critical Alert Email</div>
+      <div class="f">
+        <label>SEND ALERTS TO (comma-separated)</label>
+        <input type="text" id="alertEmail" placeholder="engineer@verta.com, manager@verta.com">
+      </div>
+    </div>
+
+    <div>
+      <div class="sgt">Machine Label</div>
+      <div class="f">
+        <label>SHOWN IN HEADER</label>
+        <input type="text" id="siteLabel" placeholder="Crusher 1 — Main Line">
+      </div>
+    </div>
+
+    <button class="sbtn" onclick="saveSettings()">Save Settings</button>
+
+    <div>
+      <div class="sgt">Change API Key</div>
+      <div class="snote">To update your key: edit the field above and click Save Settings. To clear it and see the setup screen again, click below.</div>
+      <button class="test-btn" style="margin-top:8px;color:var(--r);border-color:rgba(239,68,68,.3)" onclick="clearKey()">🗑 Clear API Key</button>
+    </div>
+
+  </div>
+</aside>
+
+<!-- ── MAIN ──────────────────────────────────────────────────────────────── -->
+<main class="shell">
+<div class="mg">
+
+  <!-- LEFT -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div class="card">
+      <div class="chdr"><div class="ct">Vibration Readings</div><span style="font-size:10px;color:var(--t3)">mm/s RMS</span></div>
+      <div class="cb">
+        <div class="iso-row">
+          <div class="iso-i"><div class="iso-d" style="background:var(--g)"></div>OK ≤ 2.8</div>
+          <div class="iso-i"><div class="iso-d" style="background:var(--am)"></div>Alert 2.8–7.1</div>
+          <div class="iso-i"><div class="iso-d" style="background:var(--r)"></div>High 7.1–11</div>
+          <div class="iso-i"><div class="iso-d" style="background:var(--p)"></div>Critical >11</div>
+        </div>
+        <div class="sl">Crusher — Pulley Side</div>
+        <div class="g4">
+          <div class="f"><label>Pulley Vert ✱</label><input type="number" step="0.1" min="0" id="pv" placeholder="—" oninput="ci(this)"></div>
+          <div class="f"><label>Pulley Hor ✱</label><input type="number" step="0.1" min="0" id="ph" placeholder="—" oninput="ci(this)"></div>
+          <div class="f"><label>Pulley Axial ✱</label><input type="number" step="0.1" min="0" id="pa" placeholder="—" oninput="ci(this)"></div>
+          <div class="f"><label>Pulley Base</label><input type="number" step="0.1" min="0" id="pb" placeholder="opt" oninput="ci(this)"></div>
+        </div>
+        <div class="sl" style="margin-top:8px">Crusher — Fan / Blower Side</div>
+        <div class="g2">
+          <div class="f"><label>Fan Vert ✱</label><input type="number" step="0.1" min="0" id="fv" placeholder="—" oninput="ci(this)"></div>
+          <div class="f"><label>Fan Hor ✱</label><input type="number" step="0.1" min="0" id="fh" placeholder="—" oninput="ci(this)"></div>
+        </div>
+        <div class="sl" style="margin-top:8px">Motor</div>
+        <div class="g2">
+          <div class="f"><label>Motor Hor</label><input type="number" step="0.1" min="0" id="mh" placeholder="opt" oninput="ci(this)"></div>
+          <div class="f"><label>Motor Vert</label><input type="number" step="0.1" min="0" id="mv" placeholder="opt" oninput="ci(this)"></div>
+        </div>
+        <hr class="dvd">
+        <div class="g2">
+          <div class="f"><label>Operator</label><input type="text" id="operator" placeholder="Name"></div>
+          <div class="f"><label>Run Label / Notes</label><input type="text" id="note" placeholder="e.g. After belt swap"></div>
+        </div>
+        <button class="abtn" id="abtn" onclick="runAnalysis()"><span id="btxt">▶  Analyse Now</span></button>
+        <div style="font-size:9px;color:var(--t3);margin-top:6px;text-align:center">✱ required fields</div>
+      </div>
+    </div>
+
+    <!-- BLADE WEIGHTS -->
+    <div class="card">
+      <div class="btog" onclick="toggleBlades()">
+        <div class="ct">Blade Weights (optional)</div>
+        <span class="chv" id="chv">▼</span>
+      </div>
+      <div class="bbody" id="bbody">
+        <div class="sl">Q1 vs Q3 — 12 blades (B1=blower, B12=pulley)</div>
+        <table class="btab"><thead><tr><th>B</th><th>Q1 (g)</th><th>Q3 (g)</th><th>Diff</th></tr></thead><tbody id="t12"></tbody></table>
+        <div class="sl" style="margin-top:8px">Q2 vs Q4 — 6 blades</div>
+        <table class="btab"><thead><tr><th>B</th><th>Q2 (g)</th><th>Q4 (g)</th><th>Diff</th></tr></thead><tbody id="t6"></tbody></table>
+        <div class="bstats">
+          <div class="bst"><div class="bsv" id="bq13">—</div><div class="bsl">Max Q1Q3</div></div>
+          <div class="bst"><div class="bsv" id="bq24">—</div><div class="bsl">Max Q2Q4</div></div>
+          <div class="bst"><div class="bsv" id="bstd">—</div><div class="bsl">Avg Std</div></div>
+          <div class="bst"><div class="bsv" id="bg13">—</div><div class="bsl">G13</div></div>
+          <div class="bst"><div class="bsv" id="bg24">—</div><div class="bsl">G24</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: RESULTS -->
+  <div id="resultArea">
+    <div class="card">
+      <div class="chdr"><div class="ct">Diagnostic Result</div></div>
+      <div class="empty">
+        <div style="font-size:36px;opacity:.3">📡</div>
+        <div style="font-size:12px">Enter vibration readings and press Analyse</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- HISTORY -->
+<div class="hist-sec" id="histSec" style="display:none">
+  <div class="card">
+    <div class="chdr">
+      <div class="ct">Session History</div>
+      <div style="display:flex;gap:8px">
+        <button class="gb" onclick="exportCSV()">↓ CSV</button>
+        <button class="gb" onclick="clearHist()">Clear</button>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tw"><canvas id="trendChart"></canvas></div>
+      <div class="hl" id="histList"></div>
+    </div>
+  </div>
+</div>
+</main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   SYSTEM PROMPT
+═══════════════════════════════════════════════════════════════════════════ */
+const SYS = `You are an expert vibration analyst for the Verta Bioenergy hammer mill crusher at Dasmariñas, Cavite, Philippines. You have 36 historical runs of vibration and blade weight data from this machine (Apr–May 2026).
+
+MACHINE SPECS: Belt-driven hammer mill. Crusher ~4000–4090 RPM. Motor 1800 RPM. Rotor: Q1 & Q3 = 12 blades (B1=blower side, B12=pulley side). Q2 & Q4 = 6 blades. Measurement points: Crusher pulley-side (vert, hor, axial), fan/blower-side (vert, hor), motor (hor, vert), pulley base.
+
+BASELINES (mm/s RMS): Best ever (Apr 19, post-Rotadyn balancing): P-vert=5.7 F-vert=3.5 P-hor=6.8 P-ax=5.9 F-hor=5.2. ISO 10816 Group 2: Green≤2.8 | Amber 2.8–7.1 | Red 7.1–11 | Critical>11. Worst recorded (May 20, mechanical failure in progress): P-hor=41.5 F-hor=39.6.
+
+KNOWN DEFECTS (Rotadyn report, Apr 2026): (1) Pulley clearance fit — no taper-lock, only axial end-bolt → primary looseness source at 4000 RPM, causes shaft galling and keyway damage. (2) Belts worn and cracking → belt-frequency vibrations. (3) Foundation insufficient stiffness → resonance/soft-foot risk. (4) Q3 B12 prone to rotary disc rubbing.
+
+DIAGNOSTIC PATTERNS (36 historical runs): Pattern A: Same blade config, vibration rising hours/days → mechanical deterioration (pulley migrating, bearing wear). NOT blade balance. KEY EVIDENCE: vibration went 18.7→41.5 mm/s in 12 hours with zero blade changes. Pattern B: All channels uniformly elevated → foundation resonance or severe global imbalance. Pattern C: Fan hor >> Pulley hor → blower-side blade heavy (Q1/Q3 B1–B6). Pattern D: Pulley hor >> Fan hor → pulley-side blade heavy (Q1/Q3 B7–B12). Pattern E: Pulley axial >1.5× pulley hor → shaft misalignment, bearing damage, or axially migrating loose pulley. Pattern F: Motor hor elevated vs crusher → belt tension or angular misalignment. Pattern G: Bolt tightening INCREASES vibration → resonance, NOT looseness, do not continue tightening. Pattern H: Low Q1Q3 diff (<2g) but high vibration → blade balance is NOT the cause (confirmed: 1.4g diff coincided with 41.5 mm/s). Pattern I: G13>5 → blower-to-pulley weight gradient in Q1/Q3. Pattern J: Pulley base high vs crusher → foundation soft foot or structural resonance. IMPORTANT: Blade rebalancing cannot fix patterns A,B,E,F,G,J — these need mechanical intervention.
+
+BLADE RULES (when data provided): G13=[avg(Q1 B7-12)−avg(Q1 B1-6)]+[avg(Q3 B7-12)−avg(Q3 B1-6)]. G24=[avg(Q2 B4-6)−avg(Q2 B1-3)]+[avg(Q4 B4-6)−avg(Q4 B1-3)]. Targets: |G13|<2, |G24|<2. Current blades avg 354g vs best-ever 346g (heavier→higher vibration, r=0.25).
+
+Respond ONLY with valid JSON — no preamble, no markdown fences:
+{"severity":"Green|Amber|Red|Critical","severity_reason":"one sentence","primary_fault":"max 8 words","confidence":"High|Medium|Low","pattern_match":"pattern letter(s) + one-sentence explanation","contributing_factors":["f1","f2","f3"],"immediate_actions":["a1","a2"],"scheduled_actions":["a1","a2","a3"],"stop_machine":true|false,"stop_reason":"string or null","blade_assessment":"string","dominant_axis":"string"}`;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════════════════════ */
+let hist = [], lastR = null, lastRd = null, tc = null;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════════════════════ */
+window.addEventListener('DOMContentLoaded', () => {
+  const key = localStorage.getItem('vb_api_key') || '';
+  if (!key) {
+    document.getElementById('gate').classList.remove('hidden');
+  } else {
+    document.getElementById('gate').classList.add('hidden');
+  }
+  loadSettings();
+  loadHist();
+  buildBladeTables();
+  restoreForm();
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GATE (first-run key entry)
+═══════════════════════════════════════════════════════════════════════════ */
+function toggleGateEye() {
+  const inp = document.getElementById('gateKey');
+  const btn = document.getElementById('gateEyeBtn');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+async function submitGate() {
+  const key = document.getElementById('gateKey').value.trim();
+  const err = document.getElementById('gateErr');
+  const status = document.getElementById('gateStatus');
+  const btn = document.getElementById('gateBtn');
+
+  if (!key) { err.textContent = 'Please enter your API key.'; return; }
+  if (!key.startsWith('sk-ant-')) { err.textContent = 'Key should start with sk-ant-'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Testing key…';
+  status.textContent = 'Verifying with Anthropic…';
+  err.textContent = '';
+
+  const ok = await verifyKey(key);
+  if (ok === true) {
+    localStorage.setItem('vb_api_key', key);
+    document.getElementById('gate').classList.add('hidden');
+    loadSettings();
+  } else {
+    err.textContent = 'Key rejected: ' + ok;
+    btn.disabled = false;
+    btn.textContent = 'Save & Continue →';
+    status.textContent = '';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KEY VERIFICATION (small test call)
+═══════════════════════════════════════════════════════════════════════════ */
+async function verifyKey(key) {
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 5, messages: [{ role: 'user', content: 'hi' }] })
+    });
+    const d = await res.json();
+    if (d.error) return d.error.message || JSON.stringify(d.error);
+    if (d.content) return true;
+    return 'Unexpected response: ' + JSON.stringify(d).slice(0, 100);
+  } catch (e) {
+    return e.message;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════════════════════════════════════ */
+function loadSettings() {
+  const key = localStorage.getItem('vb_api_key') || '';
+  document.getElementById('settingsKey').value = key;
+  document.getElementById('alertEmail').value = localStorage.getItem('vb_email') || '';
+  const label = localStorage.getItem('vb_label') || 'Crusher Diagnostic';
+  document.getElementById('siteLabel').value = label;
+  document.getElementById('siteHdr').textContent = label;
+}
+
+function saveSettings() {
+  const key = document.getElementById('settingsKey').value.trim();
+  if (key) localStorage.setItem('vb_api_key', key);
+  localStorage.setItem('vb_email', document.getElementById('alertEmail').value.trim());
+  const label = document.getElementById('siteLabel').value.trim() || 'Crusher Diagnostic';
+  localStorage.setItem('vb_label', label);
+  document.getElementById('siteHdr').textContent = label;
+  closeSettings();
+}
+
+function clearKey() {
+  if (!confirm('Clear API key? You will be taken back to the setup screen.')) return;
+  localStorage.removeItem('vb_api_key');
+  closeSettings();
+  document.getElementById('gate').classList.remove('hidden');
+  document.getElementById('gateKey').value = '';
+  document.getElementById('gateErr').textContent = '';
+  document.getElementById('gateStatus').textContent = '';
+  document.getElementById('gateBtn').disabled = false;
+  document.getElementById('gateBtn').textContent = 'Save & Continue →';
+}
+
+function toggleSettingsEye() {
+  const inp = document.getElementById('settingsKey');
+  const btn = document.getElementById('settingsEyeBtn');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  btn.textContent = inp.type === 'password' ? '👁' : '🙈';
+}
+
+async function testKey() {
+  const key = document.getElementById('settingsKey').value.trim() || localStorage.getItem('vb_api_key') || '';
+  const box = document.getElementById('apiStatus');
+  box.className = 'api-status'; box.textContent = 'Testing…';
+  if (!key) { box.textContent = 'No key entered.'; box.className = 'api-status api-err'; return; }
+  const ok = await verifyKey(key);
+  if (ok === true) { box.textContent = '✓ Connected — Claude API is working.'; box.className = 'api-status api-ok'; }
+  else { box.textContent = '✗ ' + ok; box.className = 'api-status api-err'; }
+}
+
+function openSettings() { document.getElementById('sov').classList.add('show'); document.getElementById('spanel').classList.add('show'); }
+function closeSettings() { document.getElementById('sov').classList.remove('show'); document.getElementById('spanel').classList.remove('show'); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BLADE TABLES
+═══════════════════════════════════════════════════════════════════════════ */
+function buildBladeTables() {
+  const t12 = document.getElementById('t12');
+  for (let i = 1; i <= 12; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="rn">${i}</td><td><input class="bi" type="number" step="0.1" id="q1b${i}" oninput="cbs()"></td><td><input class="bi" type="number" step="0.1" id="q3b${i}" oninput="cbs()"></td><td class="dc" id="d13${i}">—</td>`;
+    t12.appendChild(tr);
+  }
+  const t6 = document.getElementById('t6');
+  for (let i = 1; i <= 6; i++) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="rn">${i}</td><td><input class="bi" type="number" step="0.1" id="q2b${i}" oninput="cbs()"></td><td><input class="bi" type="number" step="0.1" id="q4b${i}" oninput="cbs()"></td><td class="dc" id="d24${i}">—</td>`;
+    t6.appendChild(tr);
+  }
+}
+
+function ga(p, n) { return Array.from({length:n}, (_, i) => { const v = parseFloat(document.getElementById(p+(i+1))?.value); return isNaN(v) ? null : v; }); }
+function avg(a) { const v = a.filter(x => x !== null); return v.length ? v.reduce((s,x)=>s+x,0)/v.length : null; }
+function std(a) { const v = a.filter(x => x !== null); if (v.length < 2) return null; const m = avg(v); return Math.sqrt(v.map(x=>(x-m)**2).reduce((s,x)=>s+x,0)/(v.length-1)); }
+
+function cbs() {
+  const q1=ga('q1b',12),q3=ga('q3b',12),q2=ga('q2b',6),q4=ga('q4b',6);
+  let mx13=null;
+  for (let i=1;i<=12;i++) { const a=q1[i-1],b=q3[i-1],c=document.getElementById('d13'+i); if(a!==null&&b!==null){const d=a-b,ab=Math.abs(d);if(mx13===null||ab>mx13)mx13=ab;c.textContent=(d>=0?'+':'')+d.toFixed(1)+'g';c.className='dc '+(ab<2?'dg':ab<5?'dw':'db');}else{c.textContent='—';c.className='dc';} }
+  let mx24=null;
+  for (let i=1;i<=6;i++) { const a=q2[i-1],b=q4[i-1],c=document.getElementById('d24'+i); if(a!==null&&b!==null){const d=a-b,ab=Math.abs(d);if(mx24===null||ab>mx24)mx24=ab;c.textContent=(d>=0?'+':'')+d.toFixed(1)+'g';c.className='dc '+(ab<2?'dg':ab<5?'dw':'db');}else{c.textContent='—';c.className='dc';} }
+  const stds=[std(q1),std(q2),std(q3),std(q4)].filter(x=>x!==null);
+  const as=stds.length?avg(stds):null;
+  const G13=(avg(q1.slice(0,6))!==null&&avg(q1.slice(6))!==null&&avg(q3.slice(0,6))!==null&&avg(q3.slice(6))!==null)?(avg(q1.slice(6))-avg(q1.slice(0,6)))+(avg(q3.slice(6))-avg(q3.slice(0,6))):null;
+  const G24=(avg(q2.slice(0,3))!==null&&avg(q2.slice(3))!==null&&avg(q4.slice(0,3))!==null&&avg(q4.slice(3))!==null)?(avg(q2.slice(3))-avg(q2.slice(0,3)))+(avg(q4.slice(3))-avg(q4.slice(0,3))):null;
+  function ss(id,v,d,th){const e=document.getElementById(id);if(v===null){e.textContent='—';e.style.color='var(--t3)';return;}e.textContent=(v>=0?'+':'')+v.toFixed(d);if(th){const a=Math.abs(v);e.style.color=a<th[0]?'var(--g)':a<th[1]?'var(--am)':'var(--r)';}}
+  ss('bq13',mx13,1,[2,5]);ss('bq24',mx24,1,[2,5]);ss('bstd',as,2,[3,5]);ss('bg13',G13,2,[2,5]);ss('bg24',G24,2,[2,5]);
+}
+
+function getBladeCtx() {
+  const q1=ga('q1b',12),q3=ga('q3b',12),q2=ga('q2b',6),q4=ga('q4b',6);
+  if(!q1.some(x=>x!==null)&&!q3.some(x=>x!==null)) return '';
+  const lines=[];
+  const fmt=(a)=>a.map((v,i)=>v!==null?`B${i+1}=${v}g`:null).filter(Boolean).join(', ');
+  if(q1.some(x=>x!==null)) lines.push('Q1: '+fmt(q1));
+  if(q2.some(x=>x!==null)) lines.push('Q2: '+fmt(q2));
+  if(q3.some(x=>x!==null)) lines.push('Q3: '+fmt(q3));
+  if(q4.some(x=>x!==null)) lines.push('Q4: '+fmt(q4));
+  const stds=[std(q1),std(q2),std(q3),std(q4)].filter(x=>x!==null);
+  const as=stds.length?avg(stds):null;
+  const diffs=Array.from({length:12},(_,i)=>{const a=q1[i],b=q3[i];return(a!==null&&b!==null)?Math.abs(a-b):null;}).filter(x=>x!==null);
+  const G13=(avg(q1.slice(0,6))!==null&&avg(q1.slice(6))!==null&&avg(q3.slice(0,6))!==null&&avg(q3.slice(6))!==null)?(avg(q1.slice(6))-avg(q1.slice(0,6)))+(avg(q3.slice(6))-avg(q3.slice(0,6))):null;
+  const G24=(avg(q2.slice(0,3))!==null&&avg(q2.slice(3))!==null&&avg(q4.slice(0,3))!==null&&avg(q4.slice(3))!==null)?(avg(q2.slice(3))-avg(q2.slice(0,3)))+(avg(q4.slice(3))-avg(q4.slice(0,3))):null;
+  lines.push('');
+  if(diffs.length) lines.push('Max |Q1-Q3 diff|: '+Math.max(...diffs).toFixed(1)+'g');
+  if(as!==null) lines.push('Avg within-Q std: '+as.toFixed(2)+'g');
+  if(G13!==null) lines.push('G13: '+G13.toFixed(2));
+  if(G24!==null) lines.push('G24: '+G24.toFixed(2));
+  return '\n\nBLADE WEIGHT DATA:\n'+lines.join('\n');
+}
+
+function toggleBlades() { document.getElementById('bbody').classList.toggle('open'); document.getElementById('chv').classList.toggle('open'); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIB INPUTS
+═══════════════════════════════════════════════════════════════════════════ */
+function gn(id) { const v=parseFloat(document.getElementById(id).value); return isNaN(v)?null:v; }
+function ci(el) { const v=parseFloat(el.value); el.classList.remove('vg','va','vr','vc'); if(isNaN(v)||v<=0)return; if(v<=2.8)el.classList.add('vg'); else if(v<=7.1)el.classList.add('va'); else if(v<=11)el.classList.add('vr'); else el.classList.add('vc'); }
+function buildReadings() { const m={'Pulley Vertical':gn('pv'),'Pulley Horizontal':gn('ph'),'Pulley Axial':gn('pa'),'Pulley Base':gn('pb'),'Fan Vertical':gn('fv'),'Fan Horizontal':gn('fh'),'Motor Horizontal':gn('mh'),'Motor Vertical':gn('mv')}; const o={}; for(const[k,v]of Object.entries(m))if(v!==null)o[k]=v; return o; }
+function saveForm() { const ids=['pv','ph','pa','pb','fv','fh','mh','mv','note','operator']; const d={}; ids.forEach(id=>d[id]=document.getElementById(id).value); try{localStorage.setItem('vb_form',JSON.stringify(d));}catch(e){} }
+function restoreForm() { try{const d=JSON.parse(localStorage.getItem('vb_form')||'{}'); Object.entries(d).forEach(([id,val])=>{const el=document.getElementById(id);if(el)el.value=val;}); ['pv','ph','pa','pb','fv','fh','mh','mv'].forEach(id=>{const el=document.getElementById(id);if(el&&el.value)ci(el);});}catch(e){} }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANALYSIS
+═══════════════════════════════════════════════════════════════════════════ */
+async function runAnalysis() {
+  const rd = buildReadings();
+  const req = ['Pulley Vertical','Pulley Horizontal','Fan Vertical','Fan Horizontal'];
+  const miss = req.filter(k => rd[k] === undefined);
+  if (miss.length) { alert('Please enter: ' + miss.join(', ')); return; }
+
+  const apiKey = localStorage.getItem('vb_api_key');
+  if (!apiKey) { openSettings(); alert('Please enter your API key in Settings first.'); return; }
+
+  saveForm();
+  const btn = document.getElementById('abtn');
+  btn.disabled = true;
+  document.getElementById('btxt').innerHTML = '<div class="spin"></div> Analysing…';
+  showLoader();
+
+  const op = document.getElementById('operator').value.trim();
+  const note = document.getElementById('note').value.trim();
+  const rl = Object.entries(rd).map(([k,v])=>`  ${k}: ${v} mm/s`).join('\n');
+  const recent = hist.slice(-3).map(h=>`  [${h.ts}] ${h.fault} P-hor=${h.ph??'?'} F-hor=${h.fh??'?'} sev=${h.severity}`).join('\n');
+  const prompt = `CURRENT READINGS:\n${rl}${op?'\nOperator: '+op:''}${note?'\nNotes: '+note:''}${getBladeCtx()}${recent?'\n\nRECENT HISTORY:\n'+recent:''}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, system: SYS, messages: [{ role: 'user', content: prompt }] })
+    });
+
+    const raw = await res.text();
+    let data;
+    try { data = JSON.parse(raw); } catch(_) { showErr('Non-JSON response', raw.slice(0,400)); return; }
+
+    if (data.error) {
+      // If auth error, prompt to update key
+      if (data.error.type === 'authentication_error') {
+        showErr('Invalid API key', data.error.message + '\n\nOpen Settings (⚙) to update your key.');
+      } else {
+        showErr('Anthropic API error', data.error.message || JSON.stringify(data.error));
+      }
+      return;
+    }
+
+    const txt = data.content?.find(b=>b.type==='text')?.text || '';
+    let result;
+    try { result = JSON.parse(txt.replace(/```json|```/g,'').trim()); }
+    catch(e) { showErr('Could not parse AI response', txt.slice(0,400)); return; }
+
+    lastR = result; lastRd = rd;
+    const entry = {
+      ts: new Date().toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}),
+      severity: result.severity, fault: result.primary_fault,
+      ph: rd['Pulley Horizontal']??null, fh: rd['Fan Horizontal']??null, pa: rd['Pulley Axial']??null,
+      operator: op, note, rd, result
+    };
+    hist.push(entry); saveHist(); renderHist(); renderTrend();
+    showResult(result, rd);
+    setStatus(result.severity);
+    if (result.severity === 'Critical') showCritBar(result);
+
+  } catch(e) {
+    showErr('Network error', e.message);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('btxt').innerHTML = '▶  Analyse Now';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESULT RENDERING
+═══════════════════════════════════════════════════════════════════════════ */
+function showLoader() { document.getElementById('resultArea').innerHTML=`<div class="card"><div class="chdr"><div class="ct">Diagnostic Result</div></div><div class="ldr"><div class="spin"></div>AI analysing vibration signature…</div></div>`; }
+function showErr(title, detail) { document.getElementById('resultArea').innerHTML=`<div class="card"><div class="chdr"><div class="ct">Error</div></div><div class="err-box"><div class="err-title">⚠ ${title}</div><div class="err-msg">${String(detail)}</div></div></div>`; }
+
+function sc(s) { return {Green:'green',Amber:'amber',Red:'red',Critical:'critical'}[s]||'amber'; }
+function rvc(v) { return v<=2.8?'rv-g':v<=7.1?'rv-a':v<=11?'rv-r':'rv-c'; }
+
+function showResult(r, rd) {
+  const c = sc(r.severity);
+  const stopHtml = r.stop_machine ? `<div class="stop-b"><div class="stop-i">🛑</div><div class="stop-t"><b>STOP MACHINE RECOMMENDED</b><span>${r.stop_reason||''}</span></div></div>` : '';
+  const rHtml = Object.entries(rd).map(([k,v])=>`<div class="rr"><span class="rk">${k}</span><span class="rv ${rvc(v)}">${v.toFixed(1)}</span></div>`).join('');
+  const fc = ['var(--r)','var(--am)','var(--ac)'];
+  const fHtml = (r.contributing_factors||[]).map((f,i)=>`<div class="fi"><div class="fd" style="background:${fc[i]||'var(--t3)'}"></div><span>${f}</span></div>`).join('');
+  const imm = (r.immediate_actions||[]).map((a,i)=>`<div class="act imm"><span class="an">${i+1}</span><span>${a}</span></div>`).join('');
+  const sch = (r.scheduled_actions||[]).map((a,i)=>`<div class="act sch"><span class="an">${i+1}</span><span>${a}</span></div>`).join('');
+  const ts = new Date().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'});
+  document.getElementById('resultArea').innerHTML = `
+  <div class="card">
+    <div class="sev-banner ${c}">
+      <div><div class="sl2 ${c}">${r.severity.toUpperCase()}</div><div class="sfault">${r.primary_fault}</div><div class="sreason">${r.severity_reason}</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px"><div class="cbadge">${r.confidence} confidence</div><div style="font-size:9px;color:var(--t3)">${ts}</div></div>
+    </div>
+    ${stopHtml}
+    <div class="rb">
+      <div><div class="sh">Readings</div><div class="rg">${rHtml}</div></div>
+      ${r.pattern_match?`<div class="pat"><div class="pat-l">Pattern match</div><div class="pat-v">${r.pattern_match}</div></div>`:''}
+      <div><div class="sh">Contributing Factors</div><div class="factors">${fHtml}</div></div>
+      ${r.dominant_axis?`<div class="dax"><b>Key diagnostic reading:</b> ${r.dominant_axis}</div>`:''}
+      <div><div class="sh imm">⚡ Immediate Actions</div><div class="acts">${imm||'<div style="font-size:11px;color:var(--t3);padding:4px 0">None required</div>'}</div></div>
+      <div><div class="sh sch">🔧 Scheduled Actions</div><div class="acts">${sch||'<div style="font-size:11px;color:var(--t3);padding:4px 0">None</div>'}</div></div>
+      ${r.blade_assessment?`<div class="blade-a"><div class="blade-al">Blade Assessment</div><div class="blade-at">${r.blade_assessment}</div></div>`:''}
+    </div>
+  </div>`;
+}
+
+function setStatus(s) { const p=document.getElementById('statusPill'); p.className='spill'; const m={Green:['sp-g','NORMAL'],Amber:['sp-a','CAUTION'],Red:['sp-r','ALERT'],Critical:['sp-c','CRITICAL']}; const[c,l]=m[s]||['sp-idle','AWAITING']; p.classList.add(c); p.textContent=l; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CRITICAL EMAIL
+═══════════════════════════════════════════════════════════════════════════ */
+function showCritBar(r) { const b=document.getElementById('critBar'); document.getElementById('critTxt').innerHTML=`🛑 CRITICAL: <b>${r.primary_fault}</b>${r.stop_machine?' — Stop machine immediately':''}`; b.classList.add('show'); }
+function sendEmail() {
+  const email=localStorage.getItem('vb_email')||'';
+  if(!email){alert('Set alert email in Settings first.');return;}
+  if(!lastR||!lastRd)return;
+  const ts=new Date().toLocaleString('en-PH',{dateStyle:'full',timeStyle:'medium'});
+  const site=localStorage.getItem('vb_label')||'Crusher';
+  const sub=encodeURIComponent(`[CRITICAL] ${site} Vibration Alert — ${ts}`);
+  const body=encodeURIComponent(`CRITICAL VIBRATION ALERT\n${'='.repeat(40)}\nMachine: ${site}\nTime: ${ts}\n\nFAULT: ${lastR.primary_fault}\nCONFIDENCE: ${lastR.confidence}\nSTOP MACHINE: ${lastR.stop_machine?'YES — '+lastR.stop_reason:'No'}\n\nREADINGS:\n${Object.entries(lastRd).map(([k,v])=>`  ${k}: ${v} mm/s`).join('\n')}\n\nIMMEDIATE ACTIONS:\n${(lastR.immediate_actions||[]).map((a,i)=>`  ${i+1}. ${a}`).join('\n')}\n\nFACTORS:\n${(lastR.contributing_factors||[]).map((f,i)=>`  ${i+1}. ${f}`).join('\n')}`);
+  window.location.href=`mailto:${email}?subject=${sub}&body=${body}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HISTORY
+═══════════════════════════════════════════════════════════════════════════ */
+function saveHist() { try{localStorage.setItem('vb_hist',JSON.stringify(hist.slice(-50)));}catch(e){} }
+function loadHist() { try{hist=JSON.parse(localStorage.getItem('vb_hist')||'[]');}catch(e){hist=[];} renderHist(); renderTrend(); }
+const ps={Green:'background:rgba(34,197,94,.15);color:var(--g)',Amber:'background:rgba(245,158,11,.15);color:var(--am)',Red:'background:rgba(239,68,68,.15);color:var(--r)',Critical:'background:rgba(168,85,247,.2);color:var(--p)'};
+function renderHist() { const sec=document.getElementById('histSec'); if(!hist.length){sec.style.display='none';return;} sec.style.display='block'; document.getElementById('histList').innerHTML=[...hist].reverse().map((h,idx)=>`<div class="hi" onclick="loadHE(${hist.length-1-idx})"><div class="hts">${h.ts}</div><div><div class="hf">${h.fault}</div>${(h.note||h.operator)?`<div class="hn">${[h.operator,h.note].filter(Boolean).join(' · ')}</div>`:''}</div><div class="hv">P-hor:${h.ph??'—'} F-hor:${h.fh??'—'}</div><div class="hp" style="${ps[h.severity]||''}">${h.severity}</div></div>`).join(''); }
+function loadHE(idx) { const h=hist[idx]; if(!h)return; const m={'Pulley Vertical':'pv','Pulley Horizontal':'ph','Pulley Axial':'pa','Pulley Base':'pb','Fan Vertical':'fv','Fan Horizontal':'fh','Motor Horizontal':'mh','Motor Vertical':'mv'}; Object.entries(m).forEach(([k,id])=>{document.getElementById(id).value=h.rd[k]!==undefined?h.rd[k]:'';});['pv','ph','pa','pb','fv','fh','mh','mv'].forEach(id=>{const el=document.getElementById(id);if(el&&el.value)ci(el);}); document.getElementById('note').value=h.note||''; document.getElementById('operator').value=h.operator||''; showResult(h.result,h.rd); setStatus(h.severity); lastR=h.result; lastRd=h.rd; window.scrollTo({top:0,behavior:'smooth'}); }
+function clearHist() { if(!confirm('Clear all history?'))return; hist=[]; localStorage.removeItem('vb_hist'); renderHist(); if(tc){tc.destroy();tc=null;} document.getElementById('statusPill').className='spill sp-idle'; document.getElementById('statusPill').textContent='AWAITING INPUT'; }
+function exportCSV() { if(!hist.length)return; const hdrs=['Timestamp','Operator','Note','Severity','Fault','Confidence','P-Vert','P-Hor','P-Ax','P-Base','F-Vert','F-Hor','M-Hor','M-Vert','Stop']; const rows=hist.map(h=>[`"${h.ts}"`,`"${h.operator||''}"`,`"${h.note||''}"`,h.severity,`"${h.fault}"`,h.result.confidence,h.rd['Pulley Vertical']??'',h.rd['Pulley Horizontal']??'',h.rd['Pulley Axial']??'',h.rd['Pulley Base']??'',h.rd['Fan Vertical']??'',h.rd['Fan Horizontal']??'',h.rd['Motor Horizontal']??'',h.rd['Motor Vertical']??'',h.result.stop_machine?'YES':'NO'].join(',')); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent([hdrs.join(','),...rows].join('\n')); a.download='verta_vibration_log.csv'; a.click(); }
+function renderTrend() { const ctx=document.getElementById('trendChart'); if(!ctx||!hist.length)return; const l12=hist.slice(-12); if(tc)tc.destroy(); tc=new Chart(ctx,{type:'line',data:{labels:l12.map(h=>h.ts.split(',')[0]||h.ts.slice(0,8)),datasets:[{label:'P-Hor',data:l12.map(h=>h.ph),borderColor:'#3b82f6',borderWidth:1.5,pointRadius:3,tension:0.3,fill:false},{label:'F-Hor',data:l12.map(h=>h.fh),borderColor:'#f59e0b',borderWidth:1.5,pointRadius:3,tension:0.3,fill:false},{label:'P-Ax',data:l12.map(h=>h.pa),borderColor:'#ef4444',borderWidth:1,pointRadius:2,tension:0.3,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{color:'#555e78',font:{size:10},boxWidth:12,padding:12}}},scales:{x:{ticks:{font:{size:9},color:'#555e78',maxRotation:45},grid:{color:'rgba(255,255,255,.04)'}},y:{ticks:{font:{size:9},color:'#555e78'},grid:{color:'rgba(255,255,255,.04)'},title:{display:true,text:'mm/s',color:'#555e78',font:{size:9}}}}}}); }
+</script>
+</body>
+</html>
